@@ -1,6 +1,6 @@
 // sw.js — minimal offline shell. Fitting: a sovereign economy runs with no network. Once loaded, offline-capable.
 const CACHE = 'agora-v2';   // v2: ledger-lock fix — concurrent signed transfers no longer break verify
-const ASSETS = ['./', './index.html', './agora.mjs', './manifest.webmanifest'];
+const ASSETS = ['./', './index.html', './agora.mjs?v=2', './manifest.webmanifest'];   // ?v=2 must match the import in index.html
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', e => {

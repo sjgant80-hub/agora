@@ -98,7 +98,7 @@
 </div>
 
 <script type="module">
-import { genesis, tick, verifyLedger, balances } from './agora.mjs';
+import { genesis, tick, verifyLedger, balances } from './agora.mjs?v=2';  // ?v bumps on every kernel change so browsers never run a stale cached kernel
 
 // ── real Ed25519 via WebCrypto (content-address fallback if unsupported) ──
 async function makeCrypto() {
