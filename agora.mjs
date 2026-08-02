@@ -31,7 +31,16 @@ export function genesis(specs = []) {
   return { agents, ledger: [g], supply, jobs: [], jobSeq: 0, tick: 0 };
 }
 
-function append(econ, body, sig = null) { const prev = econ.ledger[econ.ledger.length - 1]; const e = { ...body, seq: econ.ledger.length, prevHash: prev.hash, sig }; e.hash = h16(canonical({ ...body, seq: e.seq, prevHash: e.prevHash }) + (sig || '')); econ.ledger.push(e); return e; }
+// append at an EXPLICIT position — seq/prevHash are passed in so they match exactly what the signature covered
+// (recomputing them here would drift under concurrency; that drift was the "bad signature" race). See lock() below.
+function append(econ, body, sig, seq, prevHash) { const e = { ...body, seq, prevHash, sig: sig || null }; e.hash = h16(canonical({ ...body, seq, prevHash }) + (sig || '')); econ.ledger.push(e); return e; }
+
+// ── the LEDGER LOCK: signing is async (await crypto.sign), so two overlapping transfers could each read the
+// same chain tip, sign for it, then append at DIFFERENT positions — the signature would no longer match its
+// stored seq/prevHash ("bad signature"), or two entries would claim the same seq ("broken chain"). This
+// serializes the read-tip → sign → mutate → append critical section so every transfer is atomic w.r.t. the
+// ledger, however many run concurrently (a running economy overlaps ticks constantly). ──
+function lock(econ) { const prev = econ._tail || Promise.resolve(); let release; econ._tail = new Promise(r => (release = r)); return prev.then(() => release); }
 
 // a SIGNED transfer — the agent authorizes spending its OWN value. Conservation + no overdraft/double-spend.
 export async function transfer(econ, fromId, toId, amount, memo, { crypto, sk } = {}) {
@@ -39,12 +48,16 @@ export async function transfer(econ, fromId, toId, amount, memo, { crypto, sk } 
   if (!from || !to) return { ok: false, why: 'unknown agent' };
   amount = Math.round(amount);
   if (!(amount > 0)) return { ok: false, why: 'non-positive amount' };
-  if (from.balance < amount) return { ok: false, why: `insufficient funds (${from.balance} < ${amount}) — no overdraft, no double-spend` };
   const body = { type: 'transfer', from: fromId, to: toId, amount, memo: String(memo || '') };
-  const sig = crypto ? await crypto.sign(canonical({ ...body, seq: econ.ledger.length, prevHash: econ.ledger[econ.ledger.length - 1].hash }), sk) : null;
-  from.balance -= amount; to.balance += amount;
-  if (!from.system) from.spent += amount; if (!to.system) to.earned += amount;
-  return { ok: true, entry: append(econ, body, sig) };
+  const release = await lock(econ);                                   // ── enter critical section ──
+  try {
+    if (from.balance < amount) return { ok: false, why: `insufficient funds (${from.balance} < ${amount}) — no overdraft, no double-spend` };
+    const seq = econ.ledger.length, prevHash = econ.ledger[seq - 1].hash;   // the tip is stable until we release
+    const sig = crypto ? await crypto.sign(canonical({ ...body, seq, prevHash }), sk) : null;
+    from.balance -= amount; to.balance += amount;
+    if (!from.system) from.spent += amount; if (!to.system) to.earned += amount;
+    return { ok: true, entry: append(econ, body, sig, seq, prevHash) };     // sign + append share ONE (seq, prevHash)
+  } finally { release(); }                                            // ── leave critical section ──
 }
 
 // ── the MARKET: post a job (escrow the bounty), a skilled agent claims + does it, verified payout ──

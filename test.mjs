@@ -91,6 +91,36 @@ console.log('\n=== §7 · THE ECONOMY RUNS — value flows between agents, conse
   ok(v.ok && Object.values(balances(e)).reduce((s, x) => s + x, 0) === 80, `a breathing economy, and value STILL conserved (80) across ${v.entries} ledger entries`);
 }
 
+console.log('\n=== §7½ · CONCURRENCY — overlapping signed transfers stay a valid chain (a running economy overlaps ticks) ===');
+{
+  // REGRESSION WITNESS: signing is async, so a running economy fires transfers that OVERLAP across the await.
+  // Before the ledger lock this raced — each signed for the same tip then appended at different positions, so
+  // verify reported "bad signature". This fires many concurrent signed transfers AND overlapping ticks and
+  // asserts the chain still verifies. (Reproduced the red on 2026-08-02: "bad signature at 2".)
+  const K = await keys(['a', 'b', 'c']);
+  const e = genesis([
+    { id: 'a', balance: 40, pk: K.a.pk, wants: ['fib'], skills: ['primes'] },
+    { id: 'b', balance: 40, pk: K.b.pk, wants: ['primes'], skills: ['fib'] },
+    { id: 'c', balance: 40, pk: K.c.pk, wants: ['sort'], skills: ['sort'] },
+  ]);
+  // burst of directly-concurrent SIGNED transfers (the exact overlap that used to break verify)
+  await Promise.all([
+    transfer(e, 'a', 'b', 1, 'x', { crypto: C, sk: K.a.sk }),
+    transfer(e, 'b', 'a', 1, 'y', { crypto: C, sk: K.b.sk }),
+    transfer(e, 'a', 'c', 1, 'z', { crypto: C, sk: K.a.sk }),
+    transfer(e, 'c', 'b', 1, 'w', { crypto: C, sk: K.c.sk }),
+    transfer(e, 'b', 'c', 1, 'u', { crypto: C, sk: K.b.sk }),
+  ]);
+  const vb = await verifyLedger(e, { crypto: C });
+  ok(vb.ok, `5 concurrent signed transfers still form a valid, signed, conserved chain (${vb.entries} entries)` + (vb.ok ? '' : ' — ' + vb.why));
+  // overlapping TICKS (fire several ticks without awaiting between them, as a fast run loop would)
+  await Promise.all([0, 1, 2, 3].map(() => tick(e, ctxOf(K, e))));
+  const seqs = e.ledger.map(x => x.seq);
+  ok(new Set(seqs).size === seqs.length && seqs.every((s, i) => s === i), 'every ledger entry has a unique, gap-free seq (no two transfers grabbed the same slot)');
+  const vt = await verifyLedger(e, { crypto: C });
+  ok(vt.ok, `after overlapping ticks the ledger still verifies end-to-end (chain + every signature + conservation)` + (vt.ok ? '' : ' — ' + vt.why));
+}
+
 console.log('\n=== §8 · SOVEREIGN — the engine has NO network primitive (no cloud, no chain you don\'t control) ===');
 {
   const strip = s => s.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, '');
