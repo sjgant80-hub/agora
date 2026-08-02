@@ -1,0 +1,13 @@
+{
+  "name": "agora — a personal sovereign agent-economy",
+  "short_name": "agora",
+  "description": "Your own agents hold value, do verified work, and transact with signed transfers on a hash-chained sovereign ledger — a micro-economy on your machine. No bank, no cloud, no chain you don't control.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0b0a10",
+  "theme_color": "#0b0a10",
+  "icons": [
+    { "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230b0a10'/%3E%3Ctext x='50' y='72' font-size='58' text-anchor='middle'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

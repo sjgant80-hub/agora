@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>agora · a personal sovereign agent-economy</title>
+<meta name="description" content="Your own agents hold value, do verified work, and transact with signed transfers on a hash-chained sovereign ledger — a micro-economy running on your laptop. No bank, no cloud, no chain you don't control.">
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#0b0a10">
+<style>
+  :root{
+    --bg:#0b0a10; --panel:#14131c; --panel2:#1b1926; --border:#282436; --ink:#ece9f4; --dim:#8f89a3;
+    --gold:#e0b23a; --green:#5fd08a; --red:#e77b6b; --sig:#8fb8ff; --violet:#b79bff;
+    --serif:Georgia,'Times New Roman',serif; --sans:system-ui,-apple-system,'Segoe UI',sans-serif; --mono:ui-monospace,'SFMono-Regular',Menlo,monospace;
+  }
+  @media (prefers-color-scheme:light){ :root{ --bg:#f4f3f7; --panel:#fff; --panel2:#efedf4; --border:#e2dfeb; --ink:#181622; --dim:#6b6680; } }
+  :root[data-theme=dark]{ --bg:#0b0a10; --panel:#14131c; --panel2:#1b1926; --border:#282436; --ink:#ece9f4; --dim:#8f89a3; }
+  :root[data-theme=light]{ --bg:#f4f3f7; --panel:#fff; --panel2:#efedf4; --border:#e2dfeb; --ink:#181622; --dim:#6b6680; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--sans);-webkit-font-smoothing:antialiased;min-height:100dvh}
+  .wrap{max-width:960px;margin:0 auto;padding:20px 16px 56px}
+  header{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  h1{font-family:var(--serif);font-weight:700;font-size:clamp(25px,5vw,38px);letter-spacing:-.02em}
+  h1 .g{color:var(--gold)}
+  .sub{color:var(--dim);max-width:640px;margin:8px 0 0;font-size:14px}.sub b{color:var(--ink)}
+  .bar{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:14px 0}
+  button{font-family:var(--sans);font-weight:700;font-size:13px;padding:10px 16px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--ink);cursor:pointer;transition:.14s}
+  button:hover{border-color:var(--gold);color:var(--gold)}
+  button.g{background:var(--gold);color:#0b0a10;border-color:var(--gold)} button.g:hover{background:#f0c250;color:#0b0a10}
+  .supply{margin-left:auto;font-family:var(--mono);font-size:13px;color:var(--dim);text-align:right}
+  .supply b{color:var(--green);font-size:17px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  @media (max-width:720px){ .grid{grid-template-columns:1fr} }
+  section{background:var(--panel);border:1px solid var(--border);border-radius:15px;padding:15px}
+  .eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);margin-bottom:11px}
+  .agents{display:flex;flex-direction:column;gap:10px}
+  .agent{background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:11px 13px}
+  .agent .top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .agent .nm{font-weight:700}.agent .id{font-family:var(--mono);font-size:10px;color:var(--dim)}
+  .agent .bal{font-family:var(--mono);font-size:19px;color:var(--gold);transition:color .3s} .agent .bal.up{color:var(--green)} .agent .bal.down{color:var(--red)}
+  .agent .track{height:7px;border-radius:6px;background:var(--border);overflow:hidden;margin:7px 0 6px}
+  .agent .track i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--green));transition:width .4s}
+  .agent .tags{font-family:var(--mono);font-size:11px;color:var(--dim)}
+  .agent .tags b{color:var(--sig)} .agent .tags em{color:var(--violet);font-style:normal}
+  .feed{display:flex;flex-direction:column;gap:5px;max-height:320px;overflow:auto}
+  .feed div{font-family:var(--mono);font-size:12px;padding:6px 9px;border-radius:8px;border:1px solid var(--border)}
+  .feed .earn{color:var(--green)} .feed .post{color:var(--sig)} .feed .pay{color:var(--gold)} .feed .sys{color:var(--dim)}
+  .sov{margin-top:14px}
+  .sov .row{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-family:var(--mono);font-size:12.5px;margin-top:6px}
+  .sov .k{color:var(--dim)} .sov .v{color:var(--green)} .sov .v.warn{color:var(--red)}
+  footer{color:var(--dim);font-family:var(--mono);font-size:11px;margin-top:22px;text-align:center;line-height:1.8}
+  footer a{color:var(--gold);text-decoration:none}
+  .themebtn{width:34px;height:34px;border-radius:9px;border:1px solid var(--border);background:var(--panel);color:var(--ink);cursor:pointer;font-size:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1><span class="g">agora</span></h1>
+      <p class="sub">Your own agents <b>hold value</b>, do <b>verified work</b> to <b>earn</b>, <b>spend</b> to get work done, and pay each other with <b>signed transfers</b> on a <b>hash-chained ledger</b> — a micro-economy on your machine. <b>No bank, no cloud, no chain you don't control.</b></p>
+    </div>
+    <button class="themebtn" id="theme">◐</button>
+  </header>
+
+  <div class="bar">
+    <button class="g" id="run">▶ run the economy</button>
+    <button id="step">step once</button>
+    <button id="verify">🔒 verify the ledger</button>
+    <span class="supply">total supply (never printed): <b id="supply">—</b> · tick <span id="tick">0</span></span>
+  </div>
+
+  <div class="grid">
+    <section>
+      <div class="eyebrow">the agents — value flows between them</div>
+      <div class="agents" id="agents"></div>
+    </section>
+    <section>
+      <div class="eyebrow">the ledger — every move, signed + chained</div>
+      <div class="feed" id="feed"></div>
+    </section>
+  </div>
+
+  <section class="sov">
+    <div class="eyebrow">sovereign — verify it yourself</div>
+    <div class="row">
+      <span class="k">network calls</span><span class="v" id="net">0 — the engine has none</span>
+      <span class="k">ledger integrity</span><span class="v" id="integrity">press "verify the ledger"</span>
+      <span class="k">identities</span><span class="v" id="cryptoline">real Ed25519 (in-browser)</span>
+      <span class="k">honest scope</span><span class="v" style="color:var(--dim)">internal value units, toy-but-real compute · not money, not a cryptocurrency, not trustless consensus. it's <b style="color:var(--ink)">your</b> economy on <b style="color:var(--ink)">your</b> machine — the flag is that it BREATHES, sovereign.</span>
+    </div>
+  </section>
+
+  <footer>
+    the agent-wallet primitive, real (Ed25519 · value · signed transfers · hash-chained ledger) · <a href="https://github.com/sjgant80-hub/agora">gate 21/21</a> · a personal economy running sovereign<br>
+    <a href="https://sjgant80-hub.github.io/the-wallet/">the-wallet</a> · <a href="https://sjgant80-hub.github.io/airgap/">airgap</a> · <a href="https://github.com/sjgant80-hub/agora">source</a>
+  </footer>
+</div>
+
+<script type="module">
+import { genesis, tick, verifyLedger, balances } from './agora.mjs';
+
+// ── real Ed25519 via WebCrypto (content-address fallback if unsupported) ──
+async function makeCrypto() {
+  const subtle = (globalThis.crypto && crypto.subtle) || null;
+  if (subtle) { try {
+    const kp = await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']); await subtle.exportKey('jwk', kp.publicKey);
+    return { real: true,
+      async generate() { const k = await subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify']); const pub = await subtle.exportKey('jwk', k.publicKey), prv = await subtle.exportKey('jwk', k.privateKey); return { pk: pub.x, sk: prv.d + '.' + prv.x }; },
+      async sign(m, sk) { const [d, x] = sk.split('.'); const key = await subtle.importKey('jwk', { kty: 'OKP', crv: 'Ed25519', x, d }, { name: 'Ed25519' }, false, ['sign']); return [...new Uint8Array(await subtle.sign({ name: 'Ed25519' }, key, new TextEncoder().encode(m)))].map(b => b.toString(16).padStart(2, '0')).join(''); },
+      async verify(m, sig, pk) { try { const key = await subtle.importKey('jwk', { kty: 'OKP', crv: 'Ed25519', x: pk }, { name: 'Ed25519' }, false, ['verify']); return await subtle.verify({ name: 'Ed25519' }, key, new Uint8Array(sig.match(/../g).map(h => parseInt(h, 16))), new TextEncoder().encode(m)); } catch { return false; } } };
+  } catch {} }
+  const h = s => { let a = 0x811c9dc5 >>> 0; for (let i = 0; i < s.length; i++) a = Math.imul(a ^ s.charCodeAt(i), 0x01000193) >>> 0; return (a >>> 0).toString(16); }; let n = 0;
+  return { real: false, async generate() { const id = h('k' + (n++) + performance.now()); return { pk: id, sk: 'demo:' + id }; }, async sign(m, sk) { return h(m + sk); }, async verify(m, sig, pk) { return sig === h(m + 'demo:' + pk); } };
+}
+
+const $ = s => document.querySelector(s);
+let C, econ, K = {}, running = false, timer = null, prevBal = {};
+// a ring economy: each buys what the next sells → value circulates round the ring
+const SPECS = [
+  { id: 'alice',  emoji: '🎨', balance: 40, wants: ['primes'], skills: ['sort'] },
+  { id: 'bob',    emoji: '🔧', balance: 40, wants: ['sort'],   skills: ['fib'] },
+  { id: 'carol',  emoji: '📐', balance: 40, wants: ['fib'],    skills: ['primes'] },
+  { id: 'dave',   emoji: '🧮', balance: 40, wants: ['sum'],    skills: ['sum'] },
+];
+const ctxOf = id => ({ crypto: C, sk: K[id]?.sk });
+
+async function boot() {
+  C = await makeCrypto();
+  $('#cryptoline').textContent = C.real ? 'real Ed25519 (WebCrypto, in-browser)' : 'demo signer (browser lacks WebCrypto Ed25519) — logic is real';
+  const specs = [];
+  for (const s of SPECS) { const k = await C.generate(); K[s.id] = k; specs.push({ ...s, pk: k.pk }); }
+  econ = genesis(specs);
+  for (const s of SPECS) prevBal[s.id] = s.balance;
+  render();
+}
+
+function render(events = []) {
+  const bal = balances(econ), maxB = Math.max(60, ...Object.values(bal));
+  $('#supply').textContent = econ.supply;
+  $('#tick').textContent = econ.tick;
+  $('#agents').innerHTML = SPECS.map(s => {
+    const a = econ.agents.get(s.id), b = a.balance, dir = b > prevBal[s.id] ? 'up' : b < prevBal[s.id] ? 'down' : '';
+    return `<div class="agent"><div class="top"><span class="nm">${s.emoji} ${s.id}</span><span class="bal ${dir}">${b}</span></div>
+      <div class="track"><i style="width:${Math.min(100, b / maxB * 100)}%"></i></div>
+      <div class="tags">sells <b>${a.skills.join(', ') || '—'}</b> · buys <em>${a.wants.join(', ') || '—'}</em> · earned ${a.earned} · spent ${a.spent}</div>
+      <div class="id">${String(a.pk || '').slice(0, 22)}…</div></div>`;
+  }).join('');
+  for (const s of SPECS) prevBal[s.id] = econ.agents.get(s.id).balance;
+  for (const ev of events) {
+    if (ev.t === 'earned') addFeed(`💰 ${ev.by} earned ${ev.amount} from ${ev.from} (did ${ev.work})`, 'earn');
+    else if (ev.t === 'posted') addFeed(`📋 ${ev.by} posted work: ${ev.work} (bounty ${ev.bounty})`, 'post');
+  }
+}
+function addFeed(t, cls) { const d = document.createElement('div'); d.className = cls; d.textContent = `#${econ.ledger.length}  ${t}`; $('#feed').prepend(d); while ($('#feed').children.length > 60) $('#feed').lastChild.remove(); }
+
+async function doTick() { const ev = await tick(econ, ctxOf); render(ev); $('#integrity').textContent = 'press "verify the ledger"'; $('#integrity').className = 'v'; }
+$('#step').onclick = () => doTick();
+$('#run').onclick = () => { running = !running; $('#run').textContent = running ? '⏸ pause' : '▶ run the economy'; $('#run').classList.toggle('g', !running); if (running) timer = setInterval(doTick, 1300); else clearInterval(timer); };
+$('#verify').onclick = async () => {
+  const v = await verifyLedger(econ, { crypto: C });
+  const el = $('#integrity');
+  el.className = 'v' + (v.ok ? '' : ' warn');
+  el.textContent = v.ok ? `✓ ${v.entries} entries: hash-chain intact · every signature valid · value conserved (${v.supply})` : `✗ ${v.why}`;
+};
+
+// prove the engine makes no network calls
+let net = 0; const of = window.fetch; window.fetch = (...a) => { net++; $('#net').textContent = net + ' (never from the economy)'; return of(...a); };
+
+$('#theme').onclick = () => { const r = document.documentElement, cur = r.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'); r.setAttribute('data-theme', cur === 'dark' ? 'light' : 'dark'); };
+
+boot();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(() => {});
+</script>
+</body>
+</html>
