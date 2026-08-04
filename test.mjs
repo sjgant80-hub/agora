@@ -4,7 +4,7 @@
 // is HASH-CHAINED + tamper-evident; and — the flag — the economy RUNS: value flows between agents over ticks,
 // conservation holding the whole time. All on one machine, no network (checkable).
 import { readFileSync } from 'node:fs';
-import { genesis, transfer, postJob, claimJob, completeJob, tick, verifyLedger, balances, doWork } from './agora.mjs';
+import { genesis, transfer, postJob, claimJob, completeJob, tick, verifyLedger, balances, doWork, h16, canonical, WORKS } from './agora.mjs';
 import { nodeCrypto } from './crypto-node.mjs';
 
 const C = nodeCrypto();
@@ -137,6 +137,106 @@ console.log('\n=== §9 · DETERMINISM + FUZZ ===');
   let threw = false;
   try { const e = genesis([{ id: 'a', balance: 5 }]); await transfer(e, 'a', 'nobody', 1); await transfer(e, 'ghost', 'a', 1); await postJob(e, 'a', 'nope', 1, 1); await completeJob(e, 999, 'x'); await tick(e); } catch ( err) { threw = true; console.log('    threw:', err.message); }
   ok(!threw, 'garbage ops (unknown agents, missing work, bad job ids) never throw');
+}
+
+console.log('\n=== §10 · GATE — boundary + product-output assertions that pin every guarded line (kill test-theatre) ===');
+{
+  // ── h16 fixed vector: the content hash is pinned, so ANY change to its mixing loop is observable (line 12) ──
+  ok(h16('agora-witness-vector') === '9c18eb439ddf69cb', 'h16 matches its fixed vector — the hash mixing loop is pinned end-to-end');
+
+  // ── canonical is the deterministic signing-bytes function: it SORTS keys and passes primitives through (line 13) ──
+  ok(canonical({ b: 2, a: 1 }) === '{"a":1,"b":2}', 'canonical SORTS object keys (a signature covers stable bytes, not insertion order)');
+  ok(canonical(5) === '5', 'canonical passes a primitive straight through (the typeof-object guard, not the object branch)');
+
+  // ── WORKS fixed vectors: the real work is pinned, so a broken loop bound / default is caught (lines 17,18) ──
+  ok(WORKS.primes(8) === '2,3,5,7,11,13,17,19', 'primes(8) is EXACTLY the first 8 primes (trial-division bound + count + default all pinned)');
+  ok(WORKS.fib(8) === '0,1,1,2,3,5,8,13', 'fib(8) is EXACTLY the first 8 Fibonacci numbers (loop bound + default pinned)');
+
+  // ── amount>0 boundary: a zero-value transfer is refused, nothing moves (line 50) ──
+  {
+    const e = genesis([{ id: 'a', balance: 10 }, { id: 'b', balance: 0 }]);
+    ok(!(await transfer(e, 'a', 'b', 0, '')).ok && e.agents.get('a').balance === 10, 'a ZERO-value transfer is REFUSED (amount>0 boundary; nothing moves)');
+  }
+
+  // ── memo is recorded verbatim on the entry (line 51 String(memo || '')) ──
+  {
+    const e = genesis([{ id: 'a', balance: 10 }, { id: 'b', balance: 0 }]);
+    const t = await transfer(e, 'a', 'b', 3, 'hello');
+    ok(t.ok && t.entry.memo === 'hello', 'the transfer memo is recorded verbatim on the ledger entry');
+  }
+
+  // ── the overdraft refusal names the shortfall as "balance < amount" (line 54 template ` < `) ──
+  {
+    const e = genesis([{ id: 'a', balance: 10 }, { id: 'b', balance: 0 }]);
+    const t = await transfer(e, 'a', 'b', 999, '');
+    ok(!t.ok && t.why.includes(' < '), 'the overdraft refusal reports the shortfall as "balance < amount"');
+  }
+
+  // ── claimJob guard: a missing job OR a missing worker is refused — never crashes (line 73 || ||) ──
+  {
+    const e = genesis([{ id: 'p', balance: 20 }, { id: 'w', balance: 5, skills: ['primes'] }]);
+    await postJob(e, 'p', 'primes', 8, 5);
+    ok(!claimJob(e, 99999, 'w').ok, 'claiming a NON-EXISTENT job is refused (guard short-circuits, no crash)');
+    ok(!claimJob(e, 0, 'ghost').ok, 'a NON-EXISTENT worker cannot claim an open job (guard short-circuits, no crash)');
+  }
+
+  // ── tick posts at EXACTLY the affordable balance (line 94 balance >= bounty) ──
+  {
+    const e = genesis([{ id: 'c', balance: 5, wants: ['primes'] }]);
+    await tick(e);
+    ok(e.jobs.length === 1, 'an agent with balance EXACTLY the bounty (5) still posts its want (>= boundary)');
+  }
+
+  // ── tick DEDUP: an OPEN want is not re-posted next tick (line 93 poster===/work===/status===open/||, line 94 &&) ──
+  {
+    const e = genesis([{ id: 'c', balance: 100, wants: ['primes'] }]);   // no worker → the job stays OPEN forever
+    await tick(e); await tick(e);
+    ok(e.jobs.length === 1, 'a want with an OPEN job is NOT re-posted next tick (dedup on poster ∧ work ∧ open)');
+  }
+
+  // ── tick DEDUP holds while the job is CLAIMED too (line 93 status === 'claimed') ──
+  {
+    const e = genesis([{ id: 'c', balance: 100, wants: ['primes'] }, { id: 'wk', balance: 0, skills: ['primes'] }]);
+    await postJob(e, 'c', 'primes', 8, 5);
+    claimJob(e, 0, 'wk');                                                 // the job is now CLAIMED, not open
+    await tick(e);
+    ok(e.jobs.length === 1, 'a want whose job is CLAIMED is NOT re-posted (dedup covers claimed, not only open)');
+  }
+
+  // ── tick DEDUP keys on WORK too: holding a primes job does NOT suppress posting a fib want (line 93 && &&) ──
+  {
+    const e = genesis([{ id: 'c', balance: 100, wants: ['fib'] }]);
+    await postJob(e, 'c', 'primes', 8, 5);                               // c holds an OPEN primes job (a different work)
+    await tick(e);
+    ok(e.jobs.length === 2, 'holding a primes job does NOT block posting the DIFFERENT fib want (dedup keys on work, not just poster)');
+  }
+
+  // ── tick producer picks a SKILLED non-poster worker, skipping an unskilled non-poster (line 98 &&) ──
+  {
+    const e = genesis([
+      { id: 'p', balance: 20, wants: ['primes'] },
+      { id: 'x', balance: 5, skills: [] },            // NOT the poster, but UNSKILLED — must be skipped
+      { id: 'y', balance: 5, skills: ['primes'] },    // the real worker, reached only past x
+    ]);
+    await tick(e);
+    ok(e.agents.get('y').earned === 5, 'the SKILLED worker earns the bounty; an unskilled non-poster is NOT mistakenly chosen (worker = ¬poster ∧ skilled)');
+  }
+
+  // ── verifyLedger rejects a first entry that is not genesis (line 106 ||) ──
+  {
+    const e = genesis([{ id: 'a', balance: 10 }]);
+    e.ledger[0] = { ...e.ledger[0], type: 'notgenesis' };
+    ok(!(await verifyLedger(e)).ok, 'a ledger whose FIRST entry is not genesis is rejected');
+  }
+
+  // ── verifyLedger REJECTS (does not crash on) a signed entry whose signer is unknown (line 114 ||) ──
+  {
+    const K = await keys(['a', 'b']);
+    const e = genesis([{ id: 'a', balance: 10, pk: K.a.pk }, { id: 'b', balance: 0, pk: K.b.pk }]);
+    await transfer(e, 'a', 'b', 5, 'm', { crypto: C, sk: K.a.sk });
+    e.agents.delete('a');                                                // the signer is no longer a known agent
+    ok(!(await verifyLedger(e, { crypto: C })).ok, 'a signed entry from an UNKNOWN signer is REJECTED, not crashed (the no-pubkey guard must fire before verify)');
+  }
 }
 
 console.log('\n' + (fail === 0
