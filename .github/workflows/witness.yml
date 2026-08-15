@@ -13,3 +13,8 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/sjgant80-hub/witness.git .witness
           node .witness/witness.mjs mutate agora.mjs --baseline witness.baseline.json --test node test.mjs
+
+      # ⚑ The prose said 21/21 while the gate ran 41. Nobody edits a README when they add an
+      # assertion, so the claim is checked against the thing it claims about.
+      - name: the numbers in the prose are the numbers the code produces
+        run: node check-claims.mjs

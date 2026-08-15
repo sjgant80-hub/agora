@@ -106,16 +106,37 @@ export async function verifyLedger(econ, { crypto } = {}) {
   const L = econ.ledger; if (!L.length || L[0].type !== 'genesis') return { ok: false, why: 'no genesis' };
   const supply = L[0].supply;
   if (h16(canonical({ seq: 0, type: 'genesis', supply, prevHash: L[0].prevHash })) !== L[0].hash) return { ok: false, why: 'genesis hash' };
+  let signed = 0, unsigned = 0;
   for (let i = 1; i < L.length; i++) {
     const e = L[i];
     if (e.prevHash !== L[i - 1].hash) return { ok: false, why: 'broken chain at ' + i };
     const { sig, hash, seq, prevHash, ...body } = e;
     if (h16(canonical({ ...body, seq, prevHash }) + (sig || '')) !== hash) return { ok: false, why: 'tampered entry ' + i };
-    if (crypto && sig) { const signer = econ.agents.get(e.from); if (!signer || !signer.pk) return { ok: false, why: 'no pubkey for signer ' + e.from }; if (!(await crypto.verify(canonical({ ...body, seq, prevHash }), sig, signer.pk))) return { ok: false, why: 'bad signature at ' + i }; }
+    // ⚑ AN ENTRY WITH NO SIGNATURE USED TO PASS IN SILENCE. The check was `if (crypto && sig)`, so a
+    // present signature was verified and an ABSENT one skipped the verifier entirely — and the audit
+    // still returned ok. Unsigned entries are legitimate here (the engine pays out without an agent
+    // to sign), so refusing them outright would be wrong. What is NOT legitimate is a verdict that
+    // reads as "verified" while saying nothing about how much of the ledger was actually signed, or
+    // an entry from an agent that HAS a key arriving without one.
+    if (crypto && sig) {
+      const signer = econ.agents.get(e.from);
+      if (!signer || !signer.pk) return { ok: false, why: 'no pubkey for signer ' + e.from };
+      if (!(await crypto.verify(canonical({ ...body, seq, prevHash }), sig, signer.pk))) return { ok: false, why: 'bad signature at ' + i };
+      signed++;
+    } else {
+      unsigned++;
+      // An agent with a key that did not sign is a hole, not a convention.
+      const signer = econ.agents.get(e.from);
+      if (crypto && signer && signer.pk) return { ok: false, why: `entry ${i} is from ${e.from}, who holds a key, but carries no signature` };
+    }
   }
   const total = [...econ.agents.values()].reduce((s, a) => s + a.balance, 0);
   if (total !== supply) return { ok: false, why: `value not conserved: ${total} ≠ ${supply}` };
-  return { ok: true, supply, entries: L.length };
+  // ⚑ Report how much of the ledger was actually signed. "ok" means the chain is intact, value is
+  // conserved and every signature present verified — it does NOT mean everything was signed, and a
+  // caller that cannot see the difference will say it does. The README said "across 25 signed
+  // entries" for a ledger of 25 entries carrying 12 signatures.
+  return { ok: true, supply, entries: L.length, signed, unsigned };
 }
 
 export const balances = econ => Object.fromEntries([...econ.agents.values()].map(a => [a.id, a.balance]));

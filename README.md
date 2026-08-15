@@ -28,20 +28,20 @@ job, do the real compute, and the engine pays them **only if the result verifies
 a ledger entry linked to the previous by hash — break any link or forge any signature and `verifyLedger`
 catches it. Total supply is minted once and **never changes**.
 
-## Proven — `node test.mjs`, real Ed25519, zero tokens, 21/21
+## Proven — `node test.mjs`, real Ed25519, zero tokens, 41/41
 
 - Signed transfers move value; a **forged signature** or a **tampered amount** is rejected.
 - **No overdraft, no double-spend.** **Conservation** — 100 in, 100 out after 20 transfers.
 - **Earn by work** — a wrong result is not paid; only the correct, recomputed answer earns.
 - **Tamper-evident ledger** — altering one prev-hash breaks the chain.
 - **The economy runs** — over 6 ticks, 12 jobs posted + paid, both agents earned, value conserved at 80
-  across 25 signed entries.
+  across 25 entries, 12 of them signed — the engine's own payouts carry no agent signature, and verifyLedger now reports both counts so "verified" cannot be read as "all signed".
 - **Sovereign** — the engine contains no network primitive; deterministic; garbage ops never throw.
 
 ## Files
 
 `agora.mjs` (the economy — agents, signed transfers, hash-chained ledger, market, tick, verifyLedger) ·
-`crypto-node.mjs` (real Ed25519 for the gate) · `test.mjs` (the 21/21 gate) · `index.html` (the live
+`crypto-node.mjs` (real Ed25519 for the gate) · `test.mjs` (the 41/41 gate) · `index.html` (the live
 dashboard — watch balances flow, the ledger stream, verify it yourself; WebCrypto Ed25519) · `sw.js` +
 `manifest.webmanifest`. Zero-dep, Node + browser.
 
