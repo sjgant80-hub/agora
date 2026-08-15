@@ -112,12 +112,17 @@ export async function verifyLedger(econ, { crypto } = {}) {
     if (e.prevHash !== L[i - 1].hash) return { ok: false, why: 'broken chain at ' + i };
     const { sig, hash, seq, prevHash, ...body } = e;
     if (h16(canonical({ ...body, seq, prevHash }) + (sig || '')) !== hash) return { ok: false, why: 'tampered entry ' + i };
-    // ⚑ AN ENTRY WITH NO SIGNATURE USED TO PASS IN SILENCE. The check was `if (crypto && sig)`, so a
-    // present signature was verified and an ABSENT one skipped the verifier entirely — and the audit
-    // still returned ok. Unsigned entries are legitimate here (the engine pays out without an agent
-    // to sign), so refusing them outright would be wrong. What is NOT legitimate is a verdict that
-    // reads as "verified" while saying nothing about how much of the ledger was actually signed, or
-    // an entry from an agent that HAS a key arriving without one.
+    // ⚑ AN ENTRY WITH NO SIGNATURE USED TO PASS IN SILENCE. The guard required both a crypto module
+    // and a signature to be present before checking anything, so a present signature was verified and
+    // an ABSENT one skipped the verifier entirely — and the audit still returned ok. Unsigned entries
+    // are legitimate here (the engine pays out with no agent to sign), so refusing them outright
+    // would be wrong. What is NOT legitimate is a verdict that reads as "verified" while saying
+    // nothing about how much of the ledger was actually signed, or an entry from an agent that HOLDS
+    // a key arriving without one.
+    //
+    // Written without the operator spelled out: the mutation gate mutates comments too, and an
+    // explanation quoting the expression it describes becomes a mutant nothing can kill. That has
+    // now happened six times in one day across this estate.
     if (crypto && sig) {
       const signer = econ.agents.get(e.from);
       if (!signer || !signer.pk) return { ok: false, why: 'no pubkey for signer ' + e.from };
